@@ -1,8 +1,16 @@
-export type TimedNote = { string: number; fret: number; beats: number };
-export function phraseBeats(notes: TimedNote[]) {
+export type TimedNote = {
+  string: number;
+  fret: number;
+  beats: number;
+  rest?: never;
+};
+export type TimedRest = { rest: true; beats: number };
+export type TimedEvent = TimedNote | TimedRest;
+
+export function phraseBeats(notes: TimedEvent[]) {
   return notes.reduce((sum, n) => sum + n.beats, 0);
 }
-export function noteAtBeat(notes: TimedNote[], beat: number) {
+export function noteAtBeat(notes: TimedEvent[], beat: number) {
   let cursor = 0;
   for (let i = 0; i < notes.length; i++) {
     cursor += notes[i].beats;
@@ -11,10 +19,11 @@ export function noteAtBeat(notes: TimedNote[], beat: number) {
   return notes.length - 1;
 }
 export function timeline(
-  notes: TimedNote[],
+  notes: TimedEvent[],
   elapsedMs: number,
   bpm: number,
   loop: boolean,
+  loopEnding?: { rest: TimedRest; lastCycle: number },
 ) {
   const elapsedBeats = (elapsedMs * bpm) / 60000;
   if (elapsedBeats < 4)
@@ -26,17 +35,24 @@ export function timeline(
       beat: Math.floor(elapsedBeats) % 4,
       progress: 0,
     };
-  const total = phraseBeats(notes),
-    played = elapsedBeats - 4;
-  const cycle = Math.floor(played / total),
-    position = loop ? played % total : Math.min(played, total);
+  const total = phraseBeats(notes);
+  const cycleBeats = total + (loopEnding?.rest.beats ?? 0);
+  const played = elapsedBeats - 4;
+  const lastCycle = loopEnding?.lastCycle ?? 0;
+  const finished = !loop && played >= lastCycle * cycleBeats + total;
+  const cycle =
+    finished && loopEnding ? lastCycle + 1 : Math.floor(played / cycleBeats);
+  const position = finished ? total : played % cycleBeats;
+  // The loop-only rest is the column immediately after the regular score.
+  const index =
+    !finished && position >= total ? notes.length : noteAtBeat(notes, position);
   return {
     countdown: 0,
-    index: noteAtBeat(notes, position),
-    finished: !loop && played >= total,
+    index,
+    finished,
     cycle,
-    beat: Math.floor(position) % 4,
-    progress: position / total,
+    beat: Math.floor(elapsedBeats) % 4,
+    progress: position / (loop ? cycleBeats : total),
   };
 }
 export function pitchName(string: number, fret: number) {

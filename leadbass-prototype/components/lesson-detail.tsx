@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,23 +13,30 @@ import { lessons } from "@/lib/content";
 import { useProgress } from "./progress-provider";
 import { BassArt } from "./bass-art";
 import { Fretboard, TabScore } from "./fretboard";
+import { TechniqueDiagram } from "./technique-diagram";
 export function LessonDetail({ id }: { id: number }) {
-  const lesson = lessons.find((l) => l.id === id)!;
+  const index = lessons.findIndex((l) => l.id === id);
+  const lesson = lessons[index];
+  const nextLesson = lessons[index + 1];
   const { progress, ready, saveStep, completeLesson } = useProgress();
-  const [step, setStep] = useState(0),
-    [finished, setFinished] = useState(false);
-  useEffect(() => {
-    if (ready)
-      setStep(Math.min(1, Math.max(0, Number(progress.steps[id]) || 0)));
-  }, [ready, id]);
+  const [finished, setFinished] = useState(false);
+  const readingTop = useRef<HTMLDivElement>(null);
+  const lastStep = lesson.steps.length - 1;
+  const step = Math.min(
+    lastStep,
+    Math.max(0, Math.trunc(Number(progress.steps[id])) || 0),
+  );
   const current = lesson.steps[step];
+  function moveToStep(nextStep: number) {
+    saveStep(id, nextStep);
+    readingTop.current?.focus();
+  }
   function advance() {
-    if (step === 1) {
+    if (step === lastStep) {
       completeLesson(id, lesson.title);
       setFinished(true);
     } else {
-      setStep(1);
-      saveStep(id, 1);
+      moveToStep(step + 1);
     }
   }
   return (
@@ -40,7 +47,9 @@ export function LessonDetail({ id }: { id: number }) {
       <div className="page-heading">
         <div>
           <span className="eyebrow">
-            LESSON {String(id).padStart(2, "0")} / 07
+            LESSON {String(index + 1).padStart(2, "0")} /{" "}
+            {String(lessons.length).padStart(2, "0")}
+            {lesson.technique && ` · ${lesson.technique.level}`}
           </span>
           <h1>{lesson.title}</h1>
           <p>{lesson.subtitle}</p>
@@ -58,9 +67,9 @@ export function LessonDetail({ id }: { id: number }) {
           <div className="button-row">
             <Link
               className="button primary"
-              href={id < 7 ? `/lessons/${id + 1}/` : "/practice/"}
+              href={nextLesson ? `/lessons/${nextLesson.id}/` : "/practice/"}
             >
-              {id < 7 ? "次のレッスンへ" : "演奏練習へ"}
+              {nextLesson ? "次のレッスンへ" : "演奏練習へ"}
               <ArrowRight size={16} />
             </Link>
             <Link className="button secondary" href="/">
@@ -70,61 +79,73 @@ export function LessonDetail({ id }: { id: number }) {
         </section>
       ) : (
         <div className="lesson-reading">
-          <div className="reading-top">
-            <span>
-              <BookOpen size={17} /> STEP {step + 1} / 2
+          <div className="reading-top" ref={readingTop} tabIndex={-1}>
+            <span aria-live="polite">
+              <BookOpen size={17} /> STEP {step + 1} / {lesson.steps.length}
             </span>
-            <div className="step-bars">
-              <i className="filled" />
-              <i className={step === 1 ? "filled" : ""} />
+            <div className="step-bars" aria-hidden="true">
+              {lesson.steps.map((section, i) => (
+                <i key={section.title} className={i <= step ? "filled" : ""} />
+              ))}
             </div>
           </div>
-          <div className={`lesson-visual ${lesson.theme}`}>
-            {current.visual === "bass" ? (
-              <>
-                <BassArt />
-                <div className="part-labels">
-                  <span>01 ヘッド</span>
-                  <span>02 ネック・指板</span>
-                  <span>03 ボディ</span>
-                </div>
-              </>
-            ) : current.visual === "tab" ? (
-              <TabScore
-                compact
-                notes={[
-                  { string: 4, fret: 0, beats: 1 },
-                  { string: 4, fret: 2, beats: 1 },
-                  { string: 4, fret: 3, beats: 1 },
-                  { string: 3, fret: 0, beats: 1 },
-                ]}
-                active={2}
-              />
-            ) : current.visual === "strings" ? (
-              <Fretboard string={4} fret={3} />
-            ) : current.visual === "rhythm" ? (
-              <div className="rhythm-visual">
-                {[1, 2, 3, 4].map((n) => (
-                  <div key={n}>
-                    <span>♩</span>
-                    <strong>{n}</strong>
+          {current.visual && (
+            <div className={`lesson-visual ${lesson.theme}`}>
+              {current.visual === "bass" ? (
+                <>
+                  <BassArt />
+                  <div className="part-labels">
+                    <span>01 ヘッド</span>
+                    <span>02 ネック・指板</span>
+                    <span>03 ボディ</span>
                   </div>
-                ))}
-                <p>1 · 2 · 3 · 4　/　ゆっくり、一定のリズムで</p>
-              </div>
-            ) : (
-              <div className="hand-visual">
-                <Hand size={86} strokeWidth={1} />
-                <div>
-                  <strong>リラックスして、やさしく。</strong>
-                  <span>肩の力を抜く → 手首を自然に → 指先で触れる</span>
+                </>
+              ) : current.visual === "tab" ? (
+                <TabScore
+                  compact
+                  notes={[
+                    { string: 4, fret: 0, beats: 1 },
+                    { string: 4, fret: 2, beats: 1 },
+                    { string: 4, fret: 3, beats: 1 },
+                    { string: 3, fret: 0, beats: 1 },
+                  ]}
+                  active={2}
+                />
+              ) : current.visual === "strings" ? (
+                <Fretboard string={4} fret={3} />
+              ) : current.visual === "rhythm" ? (
+                <div className="rhythm-visual">
+                  {[1, 2, 3, 4].map((n) => (
+                    <div key={n}>
+                      <span>♩</span>
+                      <strong>{n}</strong>
+                    </div>
+                  ))}
+                  <p>1 · 2 · 3 · 4　/　ゆっくり、一定のリズムで</p>
                 </div>
-              </div>
-            )}
-          </div>
+              ) : current.visual === "hand" ? (
+                <div className="hand-visual">
+                  <Hand size={86} strokeWidth={1} />
+                  <div>
+                    <strong>リラックスして、やさしく。</strong>
+                    <span>肩の力を抜く → 手首を自然に → 指先で触れる</span>
+                  </div>
+                </div>
+              ) : (
+                <TechniqueDiagram visual={current.visual} />
+              )}
+            </div>
+          )}
           <article>
             <h2>{current.title}</h2>
             <p>{current.text}</p>
+            {current.points && (
+              <ol className="lesson-points">
+                {current.points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ol>
+            )}
             <div className="lesson-tip">
               <Lightbulb size={21} />
               <div>
@@ -132,23 +153,30 @@ export function LessonDetail({ id }: { id: number }) {
                 <p>{current.tip}</p>
               </div>
             </div>
+            {lesson.technique && step === 0 && (
+              <Link
+                className="technique-link"
+                href="/lessons/#technique-comparison"
+              >
+                3つの奏法を比べる <ArrowRight size={15} />
+              </Link>
+            )}
           </article>
           <div className="reading-controls">
             <button
               className="button secondary"
-              disabled={step === 0}
-              onClick={() => {
-                setStep(0);
-                saveStep(id, 0);
-              }}
+              disabled={!ready || step === 0}
+              onClick={() => moveToStep(step - 1)}
             >
               <ArrowLeft size={16} />
               前へ
             </button>
-            <span className="small muted">{step + 1} / 2 ステップ</span>
-            <button className="button primary" onClick={advance}>
-              {step === 1 ? "レッスンを完了" : "次のステップ"}
-              {step === 1 ? <Check size={17} /> : <ArrowRight size={17} />}
+            <span className="small muted">
+              {step + 1} / {lesson.steps.length} ステップ
+            </span>
+            <button className="button primary" disabled={!ready} onClick={advance}>
+              {step === lastStep ? "レッスンを完了" : "次のステップ"}
+              {step === lastStep ? <Check size={17} /> : <ArrowRight size={17} />}
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight, Check, Clock3, Info, Repeat2, Star } from "lucide-react";
+import { ArrowRight, Check, Repeat2, Star } from "lucide-react";
 import { useProgress } from "@/components/progress-provider";
 export default function Results() {
   const { progress, ready } = useProgress();
@@ -35,6 +35,11 @@ export default function Results() {
           練習完了
         </span>
         <h2>{r.title}</h2>
+        {(r.noteBeats === 1 || r.noteBeats === 0.5) && (
+          <p className="small result-note-length">
+            {r.noteBeats === 1 ? "4分音符" : "8分音符"}
+          </p>
+        )}
         <div className="result-stats">
           <div>
             <span>テンポ</span>
@@ -60,44 +65,6 @@ export default function Results() {
             </strong>
           </div>
         </div>
-      </section>
-      <section className="demo-score">
-        <div className="section-heading">
-          <h2>演奏フィードバック</h2>
-          <span className="pill peach">DEMO / デモ結果</span>
-        </div>
-        <div className="notice">
-          <Info size={19} />
-          <div>
-            <strong>以下のスコアは、採点イメージのデモデータです。</strong>
-            <p>
-              実際の演奏音は取得・判定していません。あなたの演奏の評価ではありません。
-            </p>
-          </div>
-        </div>
-        <div className="score-examples">
-          <div>
-            <span>音程の正確さ</span>
-            <strong>
-              85<small> / 100</small>
-            </strong>
-            <div className="progress-track">
-              <div style={{ width: "85%" }} />
-            </div>
-          </div>
-          <div>
-            <span>リズムの安定感</span>
-            <strong>
-              78<small> / 100</small>
-            </strong>
-            <div className="progress-track">
-              <div style={{ width: "78%" }} />
-            </div>
-          </div>
-        </div>
-        <p className="small muted">
-          今後、マイク入力による音程・リズム判定の追加を予定しています。
-        </p>
       </section>
       <div className="result-encouragement">
         <Star size={21} />

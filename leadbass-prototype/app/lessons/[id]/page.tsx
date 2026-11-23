@@ -9,5 +9,5 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <LessonDetail id={Number(id)} />;
+  return <LessonDetail key={id} id={Number(id)} />;
 }

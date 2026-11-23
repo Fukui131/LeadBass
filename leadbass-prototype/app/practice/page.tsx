@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -15,13 +15,14 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { phrases, type Phrase } from "@/lib/content";
+import { phrases, type Phrase, type PracticeNoteBeats } from "@/lib/content";
 import { clampBpm, phraseBeats, timeline } from "@/lib/music";
 import { Fretboard, TabScore } from "@/components/fretboard";
 import { useProgress } from "@/components/progress-provider";
 import { useTransport } from "@/components/use-transport";
 import { TempoInput } from "@/components/tempo-input";
 export default function Practice() {
+  const { progress } = useProgress();
   const [selected, setSelected] = useState<Phrase | null>(null);
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("phrase");
@@ -60,7 +61,7 @@ export default function Practice() {
           </div>
           <div className="section-heading">
             <h2>今日は、どのフレーズにする？</h2>
-            <span className="small muted">4つのオリジナルフレーズ</span>
+            <span className="small muted">{phrases.length}つの練習メニュー</span>
           </div>
           <div className="phrase-grid">
             {phrases.map((p, i) => (
@@ -77,9 +78,12 @@ export default function Practice() {
                     PHRASE {String(i + 1).padStart(2, "0")}
                   </span>
                   <div className="mini-tab">
-                    {p.notes.slice(0, 8).map((n, j) => (
-                      <span key={j}>{n.fret}</span>
-                    ))}
+                    {p.notes
+                      .filter((note) => !note.rest)
+                      .slice(0, 8)
+                      .map((n, j) => (
+                        <span key={j}>{n.fret}</span>
+                      ))}
                   </div>
                   <span className="phrase-play">
                     <Play size={19} fill="currentColor" />
@@ -87,6 +91,17 @@ export default function Practice() {
                 </div>
                 <div className="phrase-info">
                   <span className={`pill ${p.color}`}>{p.level}</span>
+                  {progress.history.some(
+                    (item) =>
+                      item.type === "practice" &&
+                      (item.phraseId
+                        ? item.phraseId === p.id
+                        : item.title === p.title),
+                  ) && (
+                    <span className="pill sage phrase-completed">
+                      <Check size={12} /> 練習済み
+                    </span>
+                  )}
                   <h2>{p.title}</h2>
                   <p>{p.subtitle}</p>
                   <div>
@@ -94,7 +109,12 @@ export default function Practice() {
                       <Clock3 size={14} />
                       {p.bpm} BPM
                     </span>
-                    <span>{phraseBeats(p.notes) / 4}小節・4/4拍子</span>
+                    <span>
+                      {p.scaleTip
+                        ? `${p.notes.filter((note) => !note.rest).length}音`
+                        : `${phraseBeats(p.notes) / 4}小節`}
+                      ・4/4拍子
+                    </span>
                     <ArrowRight size={18} />
                   </div>
                 </div>
@@ -113,16 +133,44 @@ export default function Practice() {
 function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
   const [bpm, setBpm] = useState(phrase.bpm),
     [sound, setSound] = useState(true),
-    [loop, setLoop] = useState(false);
+    [loop, setLoop] = useState(false),
+    [lastCycle, setLastCycle] = useState(0),
+    [noteBeats, setNoteBeats] = useState<PracticeNoteBeats>(1);
   const transport = useTransport(bpm, sound);
   const { savePractice } = useProgress();
   const router = useRouter();
   const saved = useRef(false);
-  const frame = timeline(phrase.notes, transport.elapsed, bpm, loop);
-  const note = phrase.notes[frame.index];
-  const completedCycles = loop ? frame.cycle : frame.finished ? 1 : 0;
+  const notes = useMemo(
+    () =>
+      noteBeats === 1
+        ? phrase.notes
+        : phrase.notes.map((note) =>
+            note.rest ? note : { ...note, beats: noteBeats },
+          ),
+    [phrase.notes, noteBeats],
+  );
+  const loopRest = phrase.loopRest;
+  const score = useMemo(
+    () => (loop && loopRest ? [...notes, loopRest] : notes),
+    [notes, loop, loopRest],
+  );
+  const frame = timeline(
+    notes,
+    transport.elapsed,
+    bpm,
+    loop,
+    loopRest && { rest: loopRest, lastCycle },
+  );
+  const event = score[frame.index];
+  const note = event.rest ? undefined : event;
+  const showNote = !event.rest && (transport.elapsed === 0 || !frame.countdown);
+  const completedCycles = frame.cycle + Number(frame.index === notes.length);
+  const noteCount = notes.filter((event) => !event.rest).length;
+  const noteNumber = notes
+    .slice(0, frame.index + 1)
+    .filter((event) => !event.rest).length;
   function finish() {
-    if (saved.current) return;
+    if (saved.current || completedCycles === 0) return;
     saved.current = true;
     transport.pause();
     savePractice({
@@ -133,7 +181,8 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
         0,
         Math.round((transport.elapsed - (4 * 60000) / bpm) / 1000),
       ),
-      cycles: Math.max(1, completedCycles),
+      cycles: completedCycles,
+      noteBeats: phrase.scaleTip ? noteBeats : undefined,
       date: new Date().toISOString(),
     });
     router.push("/results/");
@@ -141,8 +190,13 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
   useEffect(() => {
     if (frame.finished) finish();
   }, [frame.finished]);
-  function changeBpm(value: number) {
+  function resetPractice() {
     transport.reset();
+    setLastCycle(0);
+    saved.current = false;
+  }
+  function changeBpm(value: number) {
+    resetPractice();
     setBpm(clampBpm(value));
   }
   return (
@@ -159,12 +213,15 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
         <span className={`pill ${phrase.color}`}>{phrase.level}</span>
       </div>
       <div className="player-layout">
-        <section className="player-main">
+        <section className={`player-main${phrase.scaleTip ? " scale-practice" : ""}`}>
           <div className="score-panel">
             <div className="section-heading">
               <h2>TAB譜</h2>
               <span className="small muted">
-                {phraseBeats(phrase.notes) / 4}小節 / 4拍子
+                {phrase.scaleTip
+                  ? `${noteCount}音`
+                  : `${phraseBeats(notes) / 4}小節`}{" "}
+                / 4拍子
               </span>
             </div>
             <div className="player-status" aria-live="polite">
@@ -174,18 +231,33 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
                 <>
                   カウントイン <strong>{frame.countdown}</strong>
                 </>
+              ) : event.rest ? (
+                <span className="practice-rest-status">{event.beats}拍休み</span>
               ) : transport.running ? (
                 "ハイライトに合わせて、弾いてみよう。"
               ) : (
                 "一時停止中。指の位置を確認しよう。"
               )}
             </div>
-            <TabScore
-              notes={phrase.notes}
-              active={
-                frame.countdown && transport.elapsed > 0 ? -1 : frame.index
-              }
-            />
+            {phrase.scaleTip && (
+              <dl className="practice-fingering">
+                <div>
+                  <dt>音名</dt>
+                  <dd>{(showNote && note?.fingering?.name) || "—"}</dd>
+                </div>
+                <div>
+                  <dt>推奨する指</dt>
+                  <dd>{(showNote && note?.fingering?.finger) || "—"}</dd>
+                </div>
+              </dl>
+            )}
+            {phrase.positionGuide && (
+              <p className="position-hint">
+                {(showNote && note?.fingering?.positionHint) ||
+                  "左手は2〜5Fの基本ポジション。"}
+              </p>
+            )}
+            <TabScore notes={score} active={showNote ? frame.index : -1} />
             <div className="score-progress">
               <div style={{ width: `${frame.progress * 100}%` }} />
             </div>
@@ -200,7 +272,7 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
                   ? transport.elapsed === 0
                     ? "準備中"
                     : "カウント中"
-                  : `${frame.index + 1} / ${phrase.notes.length} 音`}
+                  : `${noteNumber} / ${noteCount} 音`}
               </span>
             </div>
           </div>
@@ -210,22 +282,24 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
               <span className="small muted">左がヘッド側</span>
             </div>
             <Fretboard
-              string={note.string}
-              fret={note.fret}
-              showActive={transport.elapsed === 0 || !frame.countdown}
+              string={note?.string}
+              fret={note?.fret}
+              showActive={showNote}
             />
             <p className="small muted board-help">
-              数字の位置のフレットを押さえよう。「0」は開放弦です。
+              {phrase.scaleTip
+                ? "1フレット1フィンガー。2〜5フレットを、人差し指・中指・薬指・小指の順で担当します。"
+                : "数字の位置のフレットを押さえよう。「0」は開放弦です。"}
             </p>
+            {phrase.positionGuide && (
+              <p className="board-help">{phrase.positionGuide}</p>
+            )}
           </div>
           <div className="player-controls">
             <button
               className="icon-button"
               aria-label="最初に戻す"
-              onClick={() => {
-                transport.reset();
-                saved.current = false;
-              }}
+              onClick={resetPractice}
             >
               <RotateCcw size={20} />
             </button>
@@ -248,7 +322,10 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
               className={`icon-button ${loop ? "on" : ""}`}
               aria-label="繰り返し"
               aria-pressed={loop}
-              onClick={() => setLoop((v) => !v)}
+              onClick={() => {
+                if (loop && loopRest) setLastCycle(frame.cycle);
+                setLoop(!loop);
+              }}
             >
               <Repeat2 size={21} />
             </button>
@@ -327,11 +404,37 @@ function Player({ phrase, onBack }: { phrase: Phrase; onBack: () => void }) {
             {sound ? <Volume2 size={19} /> : <VolumeX size={19} />}クリック音
             <span className={`toggle ${sound ? "enabled" : ""}`} />
           </button>
+          {phrase.scaleTip && (
+            <fieldset
+              className="note-length-options"
+              disabled={transport.running}
+            >
+              <legend>音符の長さ</legend>
+              {([1, 0.5] as const).map((beats) => (
+                <label key={beats}>
+                  <input
+                    type="radio"
+                    name="practice-note-length"
+                    checked={noteBeats === beats}
+                    onChange={() => {
+                      resetPractice();
+                      setNoteBeats(beats);
+                    }}
+                  />
+                  {beats === 1 ? "4分音符" : "8分音符"}
+                </label>
+              ))}
+            </fieldset>
+          )}
           <div className="settings-tip">
             <strong>まずは、ゆっくり。</strong>
             <p>
-              弾きにくいときはBPMを下げてみよう。テンポを変えると、最初から練習できます。
+              {phrase.scaleTip ??
+                "弾きにくいときはBPMを下げてみよう。テンポを変えると、最初から練習できます。"}
             </p>
+            {phrase.scaleTip && (
+              <p>BPMや音符の長さを変えると、先頭に戻ります。</p>
+            )}
           </div>
           {transport.audioError && (
             <p className="small">
