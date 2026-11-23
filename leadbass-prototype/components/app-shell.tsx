@@ -16,6 +16,7 @@ import {
   Headphones,
 } from "lucide-react";
 import { useProgress } from "./progress-provider";
+import { lessons } from "@/lib/content";
 const links = [
   { href: "/", label: "ホーム", en: "Home", icon: House },
   { href: "/lessons/", label: "レッスン", en: "Lessons", icon: BookOpen },
@@ -63,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon size={20} />
               <span>{label}</span>
-              {href === "/lessons/" && <span className="nav-count">7</span>}
+              {href === "/lessons/" && <span className="nav-count">{lessons.length}</span>}
             </Link>
           ))}
         </nav>
@@ -158,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           にチューニングしてください。指板は上から1弦（G）〜4弦（E）です。
         </div>
         <p className="muted small">
-          進捗はこのブラウザに保存されます。マイクでの録音・演奏判定は行いません。演奏結果の採点はデモ表示です。
+          進捗はこのブラウザに保存されます。マイクでの録音・演奏判定は行いません。
         </p>
         <button className="button primary" onClick={() => setHelp(false)}>
           さあ、はじめよう <ChevronRight size={17} />

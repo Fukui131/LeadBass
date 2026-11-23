@@ -20,8 +20,9 @@ import { lessons } from "@/lib/content";
 export default function Home() {
   const { progress, ready } = useProgress();
   const next =
-    lessons.find((l) => !progress.completed.includes(l.id)) ?? lessons[6];
-  const percent = Math.round((progress.completed.length / 7) * 100);
+    lessons.find((l) => !progress.completed.includes(l.id)) ??
+    lessons[lessons.length - 1];
+  const percent = Math.round((progress.completed.length / lessons.length) * 100);
   const practice = progress.history.filter((h) => h.type === "practice");
   const seconds = practice.reduce((sum, h) => sum + (h.seconds ?? 0), 0);
   const days = new Set(
@@ -54,9 +55,9 @@ export default function Home() {
             <span /> HELLO, NEW BASSIST
           </span>
           <h2>
-            はじめの一音から、
+            はじめの一音、
             <br />
-            自分だけのグルーヴへ。
+            自分のペースで。
           </h2>
           <p>
             弦に触れる。音を出す。少しずつ、できることが増えていく。
@@ -70,7 +71,7 @@ export default function Home() {
             <ArrowRight size={17} />
           </Link>
           <span className="hero-foot">
-            <Clock3 size={13} /> まずは3分。楽器がなくても大丈夫。
+            <Clock3 size={13} /> まずは3分。
           </span>
         </div>
         <BassArt className="hero-art" />
@@ -85,7 +86,7 @@ export default function Home() {
             <span>レッスンの達成</span>
             <strong>
               {progress.completed.length}
-              <small> / 7 レッスン</small>
+              <small> / {lessons.length} レッスン</small>
             </strong>
           </div>
           <div
@@ -133,7 +134,9 @@ export default function Home() {
           <Link className="next-lesson" href={`/lessons/${next.id}/`}>
             <div className="lesson-art">
               <BookOpen size={43} strokeWidth={1.2} />
-              <span>LESSON {String(next.id).padStart(2, "0")}</span>
+              <span>
+                LESSON {String(lessons.indexOf(next) + 1).padStart(2, "0")}
+              </span>
               <div className="lesson-art-lines">
                 <i />
                 <i />
@@ -153,7 +156,7 @@ export default function Home() {
                   <Clock3 size={14} />
                   {next.minutes}分
                 </span>
-                <span>2ステップ</span>
+                <span>{next.steps.length}ステップ</span>
                 <span className="round-arrow">
                   <ArrowRight size={17} />
                 </span>
@@ -190,7 +193,7 @@ export default function Home() {
               </div>
               <h3>演奏練習</h3>
               <p>
-                光る指板を道しるべに、
+                指板を道しるべに、
                 <br />
                 最初のフレーズを弾こう。
               </p>
@@ -226,7 +229,9 @@ export default function Home() {
             <div className="progress-track">
               <div style={{ width: `${percent}%` }} />
             </div>
-            <p className="small muted">7つのステップで、はじめての演奏へ。</p>
+            <p className="small muted">
+              {lessons.length}のレッスンで、はじめての演奏へ。
+            </p>
             <div className="learning-map">
               {[
                 {
@@ -238,14 +243,20 @@ export default function Home() {
                 {
                   n: 3,
                   title: "音と指板を知ろう",
-                  sub: "弦・音の出し方・TAB譜",
-                  done: [3, 4, 5],
+                  sub: "弦・フレット・音の出し方",
+                  done: [3, 4],
                 },
                 {
-                  n: 6,
-                  title: "リズムにのって弾こう",
-                  sub: "リズム・フレーズ練習",
-                  done: [6, 7],
+                  n: 8,
+                  title: "3つの奏法を試そう",
+                  sub: "ピック・ツーフィンガー・スラップ",
+                  done: [8, 9, 10],
+                },
+                {
+                  n: 5,
+                  title: "譜面とリズムで弾こう",
+                  sub: "TAB譜・リズム・フレーズ練習",
+                  done: [5, 6, 7],
                 },
               ].map((item, i) => {
                 const done = item.done.every((n) =>

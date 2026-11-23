@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { pitchName } from "@/lib/music";
+import { pitchName, type TimedEvent } from "@/lib/music";
 export function Fretboard({
   string = 4,
   fret = 0,
@@ -77,7 +77,7 @@ export function TabScore({
   active = -1,
   compact = false,
 }: {
-  notes: { string: number; fret: number; beats: number }[];
+  notes: TimedEvent[];
   active?: number;
   compact?: boolean;
 }) {
@@ -116,11 +116,14 @@ export function TabScore({
             >
               {[1, 2, 3, 4].map((s) => (
                 <div className="tab-line" key={s}>
-                  {n.string === s && <span>{n.fret}</span>}
+                  {!n.rest && n.string === s && <span>{n.fret}</span>}
                 </div>
               ))}
-              <span className="note-duration">
-                {n.beats === 2 ? "𝅗𝅥" : n.beats === 0.5 ? "♪" : "♩"}
+              <span
+                className={`note-duration${n.rest ? " rest-symbol" : ""}`}
+                title={n.rest ? `${n.beats}拍休み` : undefined}
+              >
+                {n.rest ? "休" : n.beats === 2 ? "𝅗𝅥" : n.beats === 0.5 ? "♪" : "♩"}
               </span>
             </div>
           ))}

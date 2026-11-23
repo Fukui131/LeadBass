@@ -7,6 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { lessons, type PracticeNoteBeats } from "@/lib/content";
 export type HistoryItem = {
   id: string;
   type: "lesson" | "quiz" | "practice";
@@ -14,6 +15,7 @@ export type HistoryItem = {
   date: string;
   detail: string;
   seconds?: number;
+  phraseId?: string;
 };
 export type PracticeResult = {
   phraseId: string;
@@ -21,6 +23,7 @@ export type PracticeResult = {
   bpm: number;
   seconds: number;
   cycles: number;
+  noteBeats?: PracticeNoteBeats;
   date: string;
 };
 type Progress = {
@@ -59,7 +62,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         if (p && Array.isArray(p.completed) && Array.isArray(p.history)) {
           setProgress({
             completed: p.completed.filter(
-              (n: unknown) => typeof n === "number" && n >= 1 && n <= 7,
+              (id: unknown) => lessons.some((lesson) => lesson.id === id),
             ),
             steps: p.steps && typeof p.steps === "object" ? p.steps : {},
             history: p.history.filter(
@@ -147,6 +150,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
           {
             id: crypto.randomUUID(),
             type: "practice" as const,
+            phraseId: result.phraseId,
             title: result.title,
             date: result.date,
             detail: `${result.bpm} BPM · ${result.cycles}回完奏`,
